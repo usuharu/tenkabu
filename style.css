@@ -53,3 +53,12 @@
         position: absolute;
         right: 1rem;
         top: 1rem; } }
+  .logo {
+        transform: rotate( -90deg );
+        width: 25%;
+        height: 25%;
+  }
+  .logo-p {
+    width:10%;
+    height:5%;
+  }
