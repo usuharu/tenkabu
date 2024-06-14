@@ -55,12 +55,13 @@
         top: 1rem; } }
   .logo {
         transform: rotate( -90deg );
-        width: 25%;
-        height: 25%;
+        width: 100%;
+        
   }
   .logo-p {
-    width:153px;
-    height:30px;
+    width:5%;
+    position:relative;
+    left: 15%;
   }
   ul{
   padding-left:0;
@@ -68,4 +69,11 @@
 
 li{
   list-style:none;
+}
+
+.nav__toggle{
+  width:10%;
+}
+.hamburger{
+  width:100%;
 }
