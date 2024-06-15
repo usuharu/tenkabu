@@ -1,0 +1,23 @@
+ul{
+    width: 500px;
+  }
+  li{
+    display: flex;
+    padding:15px;
+    border-bottom:1px solid #000;
+  }
+  .label{
+    background-color:blue;
+    border-radius:3px;
+    color:#fff;
+    padding:2px 5px;
+    margin:0 20px;
+  }
+.title {
+    display: flex;
+  justify-content: center;
+  }
+  .feed {
+    display: flex;
+  justify-content: center;
+  }

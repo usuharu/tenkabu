@@ -6,6 +6,22 @@
 body{
   font-family:'Noto Sans JP' , sans-serif;
 }
+/* 基本スタイル（PC向けスタイル） */
+@media screen and (max-width:1024px) {
+  /* タブレット向けスタイル　*/
+  .motto {
+    width:10%;
+    max-width:500px
+  }
+  .motto-sentences {
+    display:  inline-block; 
+    width:30%;
+    padding:100px;
+  }
+  }
+  @media screen and (max-width: 540px) {
+  /* モバイル向けスタイル */
+  }
 .brand {
     font-weight: bold;
     font-size: 20px; }
@@ -109,4 +125,38 @@ li{
   display:  inline-block; 
   width:30%;
   padding:100px;
+}
+.news {
+  display: flex;
+justify-content: center;
+}
+.news-frame {
+  width:75%;
+  height:375px;
+}
+.important{
+    text-decoration: #f00 wavy underline; /* 色,波線,線を引く場所を指定 */
+}
+.howtonyubu{
+  width: 50%;
+  padding-top:5%;
+}
+.title-nyubu{
+  display: flex;
+justify-content: center;
+text-align:center;
+}
+.nyubu-honbun{
+  display: flex;
+justify-content: center;
+text-align:center;
+height:10%;
+}
+.htn-img{
+  display: flex;
+justify-content: center;
+text-align:center;
+}
+.title-nyubu{
+  padding:50px;
 }
