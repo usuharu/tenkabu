@@ -2,6 +2,10 @@
 ** The Header Media Queries **
 ** Tweak as per your needs **
 */
+@import url(http://fonts.googleapis.com/earlyaccess/notosansjp.css);
+body{
+  font-family:'Noto Sans JP' , sans-serif;
+}
 .brand {
     font-weight: bold;
     font-size: 20px; }
@@ -76,4 +80,33 @@ li{
 }
 .hamburger{
   width:100%;
+}
+  
+.back-ground-image {
+  background-image: url(bgi.png);
+  background-repeat: repeat;
+  height: 100%
+}
+.motto-text {
+  display:  inline-block;                         /* インラインブロックにする */
+  padding: 10px 20px;                             /* 余白指定 */
+  background-color: rgb(255, 235, 136);     /* 背景色指定 */
+  font-size:175%;
+}
+.motto {
+  text-align:  center;    /* 文字中央寄せ */
+  padding:  150px;        /* 余白指定 */      /* 枠線指定 */
+}
+.motto {
+  display:  inline-block; 
+  background-image: url(science.png);
+  background-size:contain;
+  height:200px;
+  width:25%;
+  background-repeat: no-repeat;
+}
+.motto-sentences {
+  display:  inline-block; 
+  width:30%;
+  padding:100px;
 }
