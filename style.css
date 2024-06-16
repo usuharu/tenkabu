@@ -101,7 +101,7 @@ li{
 .back-ground-image {
   background-image: url(bgi.png);
   background-repeat: repeat;
-  height: 100%
+  height: 100%;
 }
 .motto-text {
   display:  inline-block;                         /* インラインブロックにする */
@@ -116,10 +116,12 @@ li{
 .motto {
   display:  inline-block; 
   background-image: url(science.png);
-  background-size:contain;
   height:200px;
   width:25%;
   background-repeat: no-repeat;
+  margin-top:50px;
+  margin-left:100px;
+  background-size:contain;
 }
 .motto-sentences {
   display:  inline-block; 
