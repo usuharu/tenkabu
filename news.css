@@ -1,5 +1,7 @@
 ul{
-    width: 500px;
+    width: 60%;
+    display: flex;
+  justify-content: center;
   }
   li{
     display: flex;
