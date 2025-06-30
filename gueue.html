@@ -54,31 +54,68 @@
     </div>
 
     <script>
-        // Define a map for factorials of original guusuu numbers to their string representation for display
-        // 元のぐー数の階乗の数値とその表示文字列をマッピングするマップを定義します
-        const factorialMap = new Map([
-            [120, "5!"], // 5! = 120
-            [5040, "7!"]  // 7! = 5040
-        ]);
-
-        // 定義された「ぐー数」のリスト
+        // Define original guusuu numbers
         const originalGuusuuNumbers = [
             0.75, 1, 5, 7, 19, 31, 33, 47, 206, 519, 821, 1381, 4137
         ];
 
-        // 元のぐー数の階乗を計算し、リストに追加します
-        // ただし、大きすぎる階乗は含めない（ここでは5!と7!のみ）
-        const guusuuFactorials = [];
-        if (originalGuusuuNumbers.includes(5)) {
-            guusuuFactorials.push(120); // 5!
-        }
-        if (originalGuusuuNumbers.includes(7)) {
-            guusuuFactorials.push(5040); // 7!
-        }
-        // 1! = 1 は元のぐー数リストにすでに含まれているため、明示的に追加しません
+        // Map to store how each number should be displayed (e.g., "5!", "3 * 7")
+        // Prioritize specific representations (3/4, factorials, then products, then original number)
+        const displayRepresentationMap = new Map();
 
-        // 分解に使用するすべてのぐー数（元のぐー数と、ぐー数の階乗）のリスト
-        const guusuuNumbersForDecomposition = [...originalGuusuuNumbers, ...guusuuFactorials];
+        // 1. Add original guusuu numbers to the map with their default string representation
+        originalGuusuuNumbers.forEach(num => {
+            displayRepresentationMap.set(num, num.toString());
+        });
+        // Special case for 3/4
+        displayRepresentationMap.set(0.75, "3/4");
+
+        // Helper to calculate factorial
+        function calculateFactorial(n) {
+            if (n < 0) return NaN;
+            if (n === 0 || n === 1) return 1;
+            let res = 1;
+            for (let i = 2; i <= n; i++) {
+                res *= i;
+            }
+            return res;
+        }
+
+        // 2. Calculate and add guusuu factorials to the terms and display map
+        const guusuuFactorials = [];
+        const factorialsToConsider = [5, 7]; // Only 5! and 7! are guusuu factorials
+        for (const num of factorialsToConsider) {
+            if (originalGuusuuNumbers.includes(num)) {
+                const factValue = calculateFactorial(num);
+                guusuuFactorials.push(factValue);
+                // Factorials take precedence in display
+                displayRepresentationMap.set(factValue, `${num}!`);
+            }
+        }
+
+        // Combine original and factorial guusuu numbers for initial set of terms
+        let allPossibleTerms = new Set([...originalGuusuuNumbers, ...guusuuFactorials]);
+
+        // 3. Add products of original guusuu numbers to the terms and display map
+        for (let i = 0; i < originalGuusuuNumbers.length; i++) {
+            for (let j = 0; j < originalGuusuuNumbers.length; j++) {
+                const g1 = originalGuusuuNumbers[i];
+                const g2 = originalGuusuuNumbers[j];
+                const product = g1 * g2;
+
+                // Add to set of all possible terms
+                allPossibleTerms.add(product);
+
+                // Store display string for products, but only if not already mapped by a higher priority (factorial or 3/4)
+                if (!displayRepresentationMap.has(product)) {
+                    displayRepresentationMap.set(product, `${g1} * ${g2}`);
+                }
+            }
+        }
+
+        // Convert set to array for decomposition algorithm
+        const guusuuNumbersForDecomposition = Array.from(allPossibleTerms);
+        guusuuNumbersForDecomposition.sort((a, b) => a - b); // Sort for DP efficiency
         
         // 0.75 (3/4)を正確に扱うために、すべての数値を4倍して整数として扱います
         const scaleFactor = 4;
@@ -215,14 +252,14 @@
                 const decomposition = guusuuDecomposition(inputValue);
 
                 if (decomposition) {
-                    // 0.75を"3/4"として表示するように整形します
-                    // ぐー数の階乗の数値は"N!"として表示するように整形します
+                    // ぐー数、ぐー数の階乗、ぐー数同士の積の表示を整形します
                     const sumString = decomposition.map(num => {
-                        if (num === 0.75) return "3/4";
-                        if (factorialMap.has(num)) {
-                            return factorialMap.get(num);
+                        // displayRepresentationMapで定義された表示があればそれを使用
+                        if (displayRepresentationMap.has(num)) {
+                            return displayRepresentationMap.get(num);
                         }
-                        return num;
+                        // マップにない場合はそのままの数値を文字列化
+                        return num.toString();
                     }).join(' + ');
                     resultElement.textContent = `${inputValue} = ${sumString} (項数: ${decomposition.length})`;
                     showMessage("ぐー数分解が完了しました。", "success");
