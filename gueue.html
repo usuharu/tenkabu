@@ -261,6 +261,17 @@
             return null; // 解が見つからなかった
         }
 
+        /**
+         * 分解結果に含まれるユニークなぐー数の数を数えるヘルパー関数
+         * @param {number[]} decomposition - 分解されたぐー数の配列
+         * @returns {number} - ユニークなぐー数の数
+         */
+        function countUniqueTerms(decomposition) {
+            const uniqueTerms = new Set();
+            decomposition.forEach(term => uniqueTerms.add(Math.abs(term))); // 絶対値で比較
+            return uniqueTerms.size;
+        }
+
 
         // 「ぐー数分解する」ボタンのクリックイベントリスナー
         document.getElementById('decomposeButton').addEventListener('click', async () => {
@@ -290,45 +301,54 @@
 
             // UIの更新を許可するために、短い遅延を挟んでから計算を実行します
             setTimeout(() => {
-                let finalDecomposition = null;
-                let finalTermsCount = Infinity;
-                let isSumDiffSolution = false;
+                let bestSolution = null;
+                let bestUniqueCount = -1;
+                let bestTermsCount = Infinity;
 
                 // Step 1: BFS (和と差) で分解を試みる
-                // 使用するぐー数は、元のぐー数とぐー数の階乗のみ
                 const bfsResult = guusuuDecompositionBFS_SumDiff(inputValue, basicTermsForBFS);
                 const bfsTermsCount = bfsResult ? bfsResult.length : Infinity;
-
-                if (bfsResult) {
-                    finalDecomposition = bfsResult;
-                    finalTermsCount = bfsTermsCount;
-                    isSumDiffSolution = true;
-                }
+                const bfsUniqueTermsCount = bfsResult ? countUniqueTerms(bfsResult) : -1;
 
                 // Step 2: DP (和のみ) で分解を試みる
-                // 使用するぐー数は、元のぐー数、ぐー数の階乗、ぐー数同士の積のすべて
                 const dpResult = guusuuDecompositionDP_SumOnly(inputValue, allTermsForDP);
                 const dpTermsCount = dpResult ? dpResult.length : Infinity;
+                const dpUniqueTermsCount = dpResult ? countUniqueTerms(dpResult) : -1;
 
-                // 結果の比較と選択
+                // 結果の比較と選択 (新しい優先順位: 項数最小優先、次にユニークぐー数最大化)
+                // BFSの結果を評価
+                if (bfsResult) {
+                    bestSolution = bfsResult;
+                    bestTermsCount = bfsTermsCount;
+                    bestUniqueCount = bfsUniqueTermsCount;
+                }
+
+                // DPの結果を評価し、現在の最良解と比較
                 if (dpResult) {
-                    if (dpTermsCount < finalTermsCount) { // DPの結果の方が項数が少ない場合
-                        finalDecomposition = dpResult;
-                        finalTermsCount = dpTermsCount;
-                        isSumDiffSolution = false;
-                    } else if (dpTermsCount === finalTermsCount && !isSumDiffSolution) {
-                        // 項数が同じで、かつBFSが解を見つけられなかったか、BFSが選択されていない場合
-                        // （つまり、BFSが解を見つけたがDPも同じ項数で、DPが優先されるべきではないが、
-                        // ここではDPの結果も考慮する）
-                        finalDecomposition = dpResult;
-                        finalTermsCount = dpTermsCount;
-                        isSumDiffSolution = false;
+                    if (bestSolution === null) { // BFSで解が見つからなかった場合
+                        bestSolution = dpResult;
+                        bestTermsCount = dpTermsCount;
+                        bestUniqueCount = dpUniqueTermsCount;
+                    } else {
+                        // 優先順位1: 項数を最小化
+                        if (dpTermsCount < bestTermsCount) {
+                            bestSolution = dpResult;
+                            bestTermsCount = dpTermsCount;
+                            bestUniqueCount = dpUniqueTermsCount;
+                        } else if (dpTermsCount === bestTermsCount) {
+                            // 優先順位2: 項数が同じ場合、ユニークなぐー数の数を最大化
+                            if (dpUniqueTermsCount > bestUniqueCount) {
+                                bestSolution = dpResult;
+                                bestTermsCount = dpTermsCount;
+                                bestUniqueCount = dpUniqueTermsCount;
+                            }
+                        }
                     }
                 }
 
-                if (finalDecomposition) {
+                if (bestSolution) {
                     // ぐー数、ぐー数の階乗、ぐー数同士の積の表示を整形します
-                    const sumString = finalDecomposition.map((num, index) => {
+                    const sumString = bestSolution.map((num, index) => {
                         const absNum = Math.abs(num);
                         let termString = displayRepresentationMap.has(absNum) ? displayRepresentationMap.get(absNum) : absNum.toString();
 
@@ -339,7 +359,7 @@
                         }
                     }).join(' '); // 各項の間はスペースで結合
 
-                    resultElement.textContent = `${inputValue} = ${sumString.trim()} (項数: ${finalDecomposition.length})`;
+                    resultElement.textContent = `${inputValue} = ${sumString.trim()} (項数: ${bestSolution.length})`;
                     showMessage("ぐー数分解が完了しました。", "success");
                 } else {
                     resultElement.textContent = 'この数字はぐー数分解できませんでした。';
