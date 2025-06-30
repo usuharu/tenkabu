@@ -94,9 +94,13 @@
         }
 
         // Combine original and factorial guusuu numbers for initial set of terms
-        let allPossibleTerms = new Set([...originalGuusuuNumbers, ...guusuuFactorials]);
+        // This set is used for the BFS (sum/difference) priority
+        const basicTermsForBFS = Array.from(new Set([...originalGuusuuNumbers, ...guusuuFactorials]));
+        basicTermsForBFS.sort((a, b) => a - b);
+
 
         // 3. Add products of original guusuu numbers to the terms and display map
+        let allPossibleTerms = new Set([...basicTermsForBFS]); // Start with basic terms
         for (let i = 0; i < originalGuusuuNumbers.length; i++) {
             for (let j = 0; j < originalGuusuuNumbers.length; j++) {
                 const g1 = originalGuusuuNumbers[i];
@@ -108,14 +112,21 @@
 
                 // Store display string for products, but only if not already mapped by a higher priority (factorial or 3/4)
                 if (!displayRepresentationMap.has(product)) {
-                    displayRepresentationMap.set(product, `${g1} * ${g2}`);
+                    // To ensure products like 1*X are not displayed as "1*X" but as "X"
+                    if (g1 === 1) {
+                        displayRepresentationMap.set(product, displayRepresentationMap.get(g2) || g2.toString());
+                    } else if (g2 === 1) {
+                        displayRepresentationMap.set(product, displayRepresentationMap.get(g1) || g1.toString());
+                    } else {
+                        displayRepresentationMap.set(product, `${displayRepresentationMap.get(g1) || g1} * ${displayRepresentationMap.get(g2) || g2}`);
+                    }
                 }
             }
         }
 
-        // Convert set to array for decomposition algorithm
-        const guusuuNumbersForDecomposition = Array.from(allPossibleTerms);
-        guusuuNumbersForDecomposition.sort((a, b) => a - b); // Sort for DP efficiency
+        // Convert set to array for decomposition algorithm (for DP, includes products)
+        const allTermsForDP = Array.from(allPossibleTerms);
+        allTermsForDP.sort((a, b) => a - b); // Sort for DP efficiency
         
         // 0.75 (3/4)を正確に扱うために、すべての数値を4倍して整数として扱います
         const scaleFactor = 4;
@@ -151,75 +162,113 @@
          * 指定された数字をぐー数のみの項で構成された計算に分解する関数 (動的計画法を使用)
          * 「できるだけ少ない項の数で」という要件を満たすため、動的計画法を使用します。
          * これにより、最短の経路（最も少ない項数）が保証されます。
-         * 「必要がない場合は、同じぐー数を2度使わないこと」という要件については、
-         * 最も少ない項数を達成するために再利用が必要な場合は、再利用を許可します。
          * これは、一般的な「両替問題」の解法に準拠しています。
          *
          * @param {number} target - ぐー数分解したい数値
+         * @param {number[]} availableTerms - 分解に使用できるぐー数の配列 (正の数のみ)
          * @returns {number[]|null} - 分解されたぐー数の配列、または分解できない場合はnull
          */
-        function guusuuDecomposition(target) {
-            // 入力値のバリデーション
-            if (isNaN(target) || target < 0) {
-                showMessage("無効な入力です。正の数値を入力してください。", "error");
-                return null;
-            }
-            if (target === 0) {
-                return []; // 0は空の配列で分解可能
-            }
-
-            // 浮動小数点数の精度問題を避けるため、すべての数値を整数にスケールします
+        function guusuuDecompositionDP_SumOnly(target, availableTerms) {
             const scaledTarget = Math.round(target * scaleFactor);
-            // スケール後のターゲットが0だが元のターゲットが0でない場合（例: 0.00001など）
-            if (scaledTarget === 0 && target !== 0) {
-                showMessage("入力された数値は小さすぎて分解できません。", "error");
-                return null;
-            }
+            const scaledTerms = availableTerms.map(num => Math.round(num * scaleFactor));
+            scaledTerms.sort((a, b) => a - b);
 
-            const scaledGuusuu = guusuuNumbersForDecomposition.map(num => Math.round(num * scaleFactor));
-            // DPの効率のために、ぐー数を昇順にソートします
-            scaledGuusuu.sort((a, b) => a - b);
-
-            // dp[i] は合計 i を達成するのに必要な最小のぐー数項数
             const dp = new Array(scaledTarget + 1).fill(Infinity);
-            // path[i] は合計 i を達成するために最後に使用されたぐー数
             const path = new Array(scaledTarget + 1).fill(null);
 
-            dp[0] = 0; // 0 を達成するのに必要な項数は 0
+            dp[0] = 0;
 
             for (let i = 1; i <= scaledTarget; i++) {
-                for (const guusuu of scaledGuusuu) {
-                    // i - guusuu が負にならないことと、その前の状態が到達可能であることを確認
+                for (const guusuu of scaledTerms) {
                     if (i - guusuu >= 0 && dp[i - guusuu] !== Infinity) {
-                        // 現在のぐー数を使って i に到達する項数が、これまでの最小項数より少ない場合
                         if (dp[i - guusuu] + 1 < dp[i]) {
-                            dp[i] = dp[i - guusuu] + 1; // 項数を更新
-                            path[i] = guusuu; // 最後に使ったぐー数を記録
+                            dp[i] = dp[i - guusuu] + 1;
+                            path[i] = guusuu;
                         }
                     }
                 }
             }
 
-            // 結果の再構築
             if (dp[scaledTarget] === Infinity) {
-                return null; // 分解できませんでした
+                return null;
             }
 
             const result = [];
             let currentSum = scaledTarget;
             while (currentSum > 0) {
                 const lastGuusuuScaled = path[currentSum];
-                // 理論的にはnullにならないはずですが、念のため
                 if (lastGuusuuScaled === null) {
-                    console.error("Path reconstruction error: lastGuusuuScaled is null for currentSum", currentSum);
+                    console.error("Path reconstruction error in DP: lastGuusuuScaled is null for currentSum", currentSum);
                     return null;
                 }
-                result.push(lastGuusuuScaled / scaleFactor); // スケールを元に戻して追加
-                currentSum -= lastGuusuuScaled; // 残りの合計を更新
+                result.push(lastGuusuuScaled / scaleFactor);
+                currentSum -= lastGuusuuScaled;
             }
 
-            return result.reverse(); // ぐー数を追加した順に表示するために反転
+            return result.reverse();
         }
+
+        /**
+         * 指定された数字をぐー数のみの項で構成された計算に分解する関数 (BFSを使用し、和と差を考慮)
+         * 「できるだけ少ない項の数で」という要件を満たすため、幅優先探索 (BFS) を使用します。
+         * これにより、最短の経路（最も少ない項数）が保証されます。
+         *
+         * @param {number} target - ぐー数分解したい数値
+         * @param {number[]} availableTerms - 分解に使用できるぐー数の配列 (正の数のみ)
+         * @returns {number[]|null} - 分解されたぐー数の配列 (正負の数を含む)、または分解できない場合はnull
+         */
+        function guusuuDecompositionBFS_SumDiff(target, availableTerms) {
+            const scaledTarget = Math.round(target * scaleFactor);
+            const scaledTerms = availableTerms.map(num => Math.round(num * scaleFactor));
+            scaledTerms.sort((a, b) => a - b);
+
+            const queue = [[0, []]]; // [current_scaled_sum, path_list]
+            const visited = new Set();
+            visited.add(0);
+
+            // 探索範囲の制限 (フリーズ防止のため)
+            // 目標値の約2倍の範囲を探索し、パスの長さも制限します
+            const maxAbsScaledValue = Math.max(scaledTarget * 2, 50000); // 最小でも50000の範囲は確保
+            const maxPathLength = 10; // 最大項数を制限
+
+            let head = 0;
+            while (head < queue.length) {
+                const [currentSumScaled, currentPath] = queue[head++];
+
+                // 浮動小数点数の誤差を考慮してターゲットに非常に近いかチェック
+                if (Math.abs(currentSumScaled - scaledTarget) < 1) {
+                    return currentPath;
+                }
+
+                // パスが長くなりすぎたら枝刈り
+                if (currentPath.length >= maxPathLength) {
+                    continue;
+                }
+
+                for (const term of scaledTerms) {
+                    // 足し算を試す
+                    let nextSum = currentSumScaled + term;
+                    if (Math.abs(nextSum) <= maxAbsScaledValue && !visited.has(nextSum)) {
+                        visited.add(nextSum);
+                        queue.push([nextSum, [...currentPath, term / scaleFactor]]);
+                    }
+
+                    // 引き算を試す
+                    let nextDiff = currentSumScaled - term;
+                    if (Math.abs(nextDiff) <= maxAbsScaledValue && !visited.has(nextDiff)) {
+                        visited.add(nextDiff);
+                        queue.push([nextDiff, [...currentPath, -term / scaleFactor]]); // 負の数として記録
+                    }
+                }
+                // キューのサイズが大きくなりすぎた場合の安全策 (フリーズ対策)
+                if (queue.length > 200000) { // 20万件を超えたら打ち切り
+                    console.warn("BFS queue too large, stopping to prevent freeze.");
+                    return null;
+                }
+            }
+            return null; // 解が見つからなかった
+        }
+
 
         // 「ぐー数分解する」ボタンのクリックイベントリスナー
         document.getElementById('decomposeButton').addEventListener('click', async () => {
@@ -249,19 +298,56 @@
 
             // UIの更新を許可するために、短い遅延を挟んでから計算を実行します
             setTimeout(() => {
-                const decomposition = guusuuDecomposition(inputValue);
+                let finalDecomposition = null;
+                let finalTermsCount = Infinity;
+                let isSumDiffSolution = false;
 
-                if (decomposition) {
+                // Step 1: BFS (和と差) で分解を試みる
+                // 使用するぐー数は、元のぐー数とぐー数の階乗のみ
+                const bfsResult = guusuuDecompositionBFS_SumDiff(inputValue, basicTermsForBFS);
+                const bfsTermsCount = bfsResult ? bfsResult.length : Infinity;
+
+                if (bfsResult) {
+                    finalDecomposition = bfsResult;
+                    finalTermsCount = bfsTermsCount;
+                    isSumDiffSolution = true;
+                }
+
+                // Step 2: DP (和のみ) で分解を試みる
+                // 使用するぐー数は、元のぐー数、ぐー数の階乗、ぐー数同士の積のすべて
+                const dpResult = guusuuDecompositionDP_SumOnly(inputValue, allTermsForDP);
+                const dpTermsCount = dpResult ? dpResult.length : Infinity;
+
+                // 結果の比較と選択
+                if (dpResult) {
+                    if (dpTermsCount < finalTermsCount) { // DPの結果の方が項数が少ない場合
+                        finalDecomposition = dpResult;
+                        finalTermsCount = dpTermsCount;
+                        isSumDiffSolution = false;
+                    } else if (dpTermsCount === finalTermsCount && !isSumDiffSolution) {
+                        // 項数が同じで、かつBFSが解を見つけられなかったか、BFSが選択されていない場合
+                        // （つまり、BFSが解を見つけたがDPも同じ項数で、DPが優先されるべきではないが、
+                        // ここではDPの結果も考慮する）
+                        finalDecomposition = dpResult;
+                        finalTermsCount = dpTermsCount;
+                        isSumDiffSolution = false;
+                    }
+                }
+
+                if (finalDecomposition) {
                     // ぐー数、ぐー数の階乗、ぐー数同士の積の表示を整形します
-                    const sumString = decomposition.map(num => {
-                        // displayRepresentationMapで定義された表示があればそれを使用
-                        if (displayRepresentationMap.has(num)) {
-                            return displayRepresentationMap.get(num);
+                    const sumString = finalDecomposition.map((num, index) => {
+                        const absNum = Math.abs(num);
+                        let termString = displayRepresentationMap.has(absNum) ? displayRepresentationMap.get(absNum) : absNum.toString();
+
+                        if (num < 0) {
+                            return (index === 0 ? "-" : "- ") + termString; // 最初の項が負の場合とそれ以降で表示を調整
+                        } else {
+                            return (index === 0 ? "" : "+ ") + termString; // 最初の項が正の場合は"+"をつけない
                         }
-                        // マップにない場合はそのままの数値を文字列化
-                        return num.toString();
-                    }).join(' + ');
-                    resultElement.textContent = `${inputValue} = ${sumString} (項数: ${decomposition.length})`;
+                    }).join(' '); // 各項の間はスペースで結合
+
+                    resultElement.textContent = `${inputValue} = ${sumString.trim()} (項数: ${finalDecomposition.length})`;
                     showMessage("ぐー数分解が完了しました。", "success");
                 } else {
                     resultElement.textContent = 'この数字はぐー数分解できませんでした。';
