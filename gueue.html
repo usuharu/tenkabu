@@ -54,8 +54,32 @@
     </div>
 
     <script>
+        // Define a map for factorials of original guusuu numbers to their string representation for display
+        // 元のぐー数の階乗の数値とその表示文字列をマッピングするマップを定義します
+        const factorialMap = new Map([
+            [120, "5!"], // 5! = 120
+            [5040, "7!"]  // 7! = 5040
+        ]);
+
         // 定義された「ぐー数」のリスト
-        const guusuuNumbers = [0.75, 1, 5, 7, 19, 31, 33, 47, 206, 519, 821, 1381, 4137,31212];
+        const originalGuusuuNumbers = [
+            0.75, 1, 5, 7, 19, 31, 33, 47, 206, 519, 821, 1381, 4137
+        ];
+
+        // 元のぐー数の階乗を計算し、リストに追加します
+        // ただし、大きすぎる階乗は含めない（ここでは5!と7!のみ）
+        const guusuuFactorials = [];
+        if (originalGuusuuNumbers.includes(5)) {
+            guusuuFactorials.push(120); // 5!
+        }
+        if (originalGuusuuNumbers.includes(7)) {
+            guusuuFactorials.push(5040); // 7!
+        }
+        // 1! = 1 は元のぐー数リストにすでに含まれているため、明示的に追加しません
+
+        // 分解に使用するすべてのぐー数（元のぐー数と、ぐー数の階乗）のリスト
+        const guusuuNumbersForDecomposition = [...originalGuusuuNumbers, ...guusuuFactorials];
+        
         // 0.75 (3/4)を正確に扱うために、すべての数値を4倍して整数として扱います
         const scaleFactor = 4;
 
@@ -115,7 +139,7 @@
                 return null;
             }
 
-            const scaledGuusuu = guusuuNumbers.map(num => Math.round(num * scaleFactor));
+            const scaledGuusuu = guusuuNumbersForDecomposition.map(num => Math.round(num * scaleFactor));
             // DPの効率のために、ぐー数を昇順にソートします
             scaledGuusuu.sort((a, b) => a - b);
 
@@ -192,8 +216,12 @@
 
                 if (decomposition) {
                     // 0.75を"3/4"として表示するように整形します
+                    // ぐー数の階乗の数値は"N!"として表示するように整形します
                     const sumString = decomposition.map(num => {
                         if (num === 0.75) return "3/4";
+                        if (factorialMap.has(num)) {
+                            return factorialMap.get(num);
+                        }
                         return num;
                     }).join(' + ');
                     resultElement.textContent = `${inputValue} = ${sumString} (項数: ${decomposition.length})`;
