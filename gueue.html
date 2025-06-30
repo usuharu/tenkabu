@@ -56,8 +56,8 @@
     <script>
         // 定義された「ぐー数」のリスト
         const guusuuNumbers = [0.75, 1, 5, 7, 19, 31, 33, 47, 206, 519, 821, 1381, 4137];
-        // 0.75 (3/4)を正確に扱うために、すべての数値を10000倍して整数として扱います
-        const scaleFactor = 10000;
+        // 0.75 (3/4)を正確に扱うために、すべての数値を4倍して整数として扱います
+        const scaleFactor = 4;
 
         /**
          * メッセージボックスにメッセージを表示する関数
@@ -87,8 +87,8 @@
         }
 
         /**
-         * 指定された数字をぐー数のみの項で構成された計算に分解する関数 (BFSアルゴリズムを使用)
-         * 「できるだけ少ない項の数で」という要件を満たすため、幅優先探索 (BFS) を使用します。
+         * 指定された数字をぐー数のみの項で構成された計算に分解する関数 (動的計画法を使用)
+         * 「できるだけ少ない項の数で」という要件を満たすため、動的計画法を使用します。
          * これにより、最短の経路（最も少ない項数）が保証されます。
          * 「必要がない場合は、同じぐー数を2度使わないこと」という要件については、
          * 最も少ない項数を達成するために再利用が必要な場合は、再利用を許可します。
@@ -116,48 +116,48 @@
             }
 
             const scaledGuusuu = guusuuNumbers.map(num => Math.round(num * scaleFactor));
-            // BFSの探索効率のために、ぐー数を昇順にソートします
+            // DPの効率のために、ぐー数を昇順にソートします
             scaledGuusuu.sort((a, b) => a - b);
 
-            // BFSのためのキュー: [現在の合計値 (スケール済み), [現在の経路 (元の値)]]
-            const queue = [[0, []]];
-            // 既に訪問した合計値を記録するセット。これにより、無限ループや重複計算を防ぎます
-            const visited = new Set();
-            visited.add(0); // 初期状態の0を追加
+            // dp[i] は合計 i を達成するのに必要な最小のぐー数項数
+            const dp = new Array(scaledTarget + 1).fill(Infinity);
+            // path[i] は合計 i を達成するために最後に使用されたぐー数
+            const path = new Array(scaledTarget + 1).fill(null);
 
-            let head = 0; // キューの先頭を指すポインタ (Array.shift()の代わりに効率化)
+            dp[0] = 0; // 0 を達成するのに必要な項数は 0
 
-            // BFSループ
-            while (head < queue.length) {
-                const [currentSumScaled, currentPath] = queue[head++];
-
-                // 現在の合計値がターゲットに非常に近い場合、分解成功と見なします
-                // 浮動小数点数の比較のため、1単位未満の差は許容します
-                if (Math.abs(currentSumScaled - scaledTarget) < 1) {
-                    return currentPath; // 最短経路（最も少ない項数）が見つかりました
-                }
-
-                // 各ぐー数を使って次の状態を探索します
+            for (let i = 1; i <= scaledTarget; i++) {
                 for (const guusuu of scaledGuusuu) {
-                    const nextSumScaled = currentSumScaled + guusuu;
-
-                    // プルーニング: 次の合計値がターゲットを大幅に超える場合、この経路は無効です
-                    // 最大のぐー数の2倍を許容範囲とします（ちょうどターゲットを超える場合を考慮）
-                    if (nextSumScaled > scaledTarget + scaledGuusuu[scaledGuusuu.length - 1] * 2) {
-                        continue;
+                    // i - guusuu が負にならないことと、その前の状態が到達可能であることを確認
+                    if (i - guusuu >= 0 && dp[i - guusuu] !== Infinity) {
+                        // 現在のぐー数を使って i に到達する項数が、これまでの最小項数より少ない場合
+                        if (dp[i - guusuu] + 1 < dp[i]) {
+                            dp[i] = dp[i - guusuu] + 1; // 項数を更新
+                            path[i] = guusuu; // 最後に使ったぐー数を記録
+                        }
                     }
-
-                    // 既に訪問済みの合計値であればスキップします
-                    if (visited.has(nextSumScaled)) {
-                        continue;
-                    }
-
-                    visited.add(nextSumScaled);
-                    queue.push([nextSumScaled, [...currentPath, guusuu / scaleFactor]]);
                 }
             }
 
-            return null; // 分解が見つかりませんでした
+            // 結果の再構築
+            if (dp[scaledTarget] === Infinity) {
+                return null; // 分解できませんでした
+            }
+
+            const result = [];
+            let currentSum = scaledTarget;
+            while (currentSum > 0) {
+                const lastGuusuuScaled = path[currentSum];
+                // 理論的にはnullにならないはずですが、念のため
+                if (lastGuusuuScaled === null) {
+                    console.error("Path reconstruction error: lastGuusuuScaled is null for currentSum", currentSum);
+                    return null;
+                }
+                result.push(lastGuusuuScaled / scaleFactor); // スケールを元に戻して追加
+                currentSum -= lastGuusuuScaled; // 残りの合計を更新
+            }
+
+            return result.reverse(); // ぐー数を追加した順に表示するために反転
         }
 
         // 「ぐー数分解する」ボタンのクリックイベントリスナー
