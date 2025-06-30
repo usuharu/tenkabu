@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ぐー数分解</title>
+    <!-- Tailwind CSSを読み込み、スタイリングに使用します -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Interフォントを読み込みます -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        /* 全体のフォントをInterに設定し、背景色を調整します */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* 明るい青灰色の背景 */
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">ぐー数分解ツール</h1>
+
+        <div class="mb-4">
+            <label for="numberInput" class="block text-gray-700 text-sm font-semibold mb-2">
+                ぐー数分解したい数字を入力してください:
+            </label>
+            <input
+                type="number"
+                id="numberInput"
+                placeholder="例: 10, 0.75"
+                class="shadow-sm appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out"
+                step="any" /* 小数点以下の入力も許可します */
+            >
+        </div>
+
+        <button
+            id="decomposeButton"
+            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition duration-200 ease-in-out transform hover:scale-105"
+        >
+            ぐー数分解する
+        </button>
+
+        <div id="loadingIndicator" class="hidden text-center mt-4 text-blue-600">
+            計算中...
+        </div>
+
+        <div id="resultArea" class="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-800 mb-2">結果:</h2>
+            <p id="decompositionResult" class="text-gray-700 whitespace-pre-wrap"></p>
+        </div>
+
+        <!-- メッセージ表示用のボックス -->
+        <div id="messageBox" class="hidden mt-4 p-3 rounded-lg text-sm" role="alert"></div>
+    </div>
+
+    <script>
+        // 定義された「ぐー数」のリスト
+        const guusuuNumbers = [0.75, 1, 5, 7, 19, 31, 33, 47, 206, 519, 821, 1381, 4137];
+        // 0.75 (3/4)を正確に扱うために、すべての数値を10000倍して整数として扱います
+        const scaleFactor = 10000;
+
+        /**
+         * メッセージボックスにメッセージを表示する関数
+         * @param {string} message - 表示するメッセージ
+         * @param {'info'|'success'|'error'} type - メッセージの種類 (色分けに使用)
+         */
+        function showMessage(message, type = 'info') {
+            const messageBox = document.getElementById('messageBox');
+            messageBox.textContent = message;
+            // 以前のスタイルクラスを削除し、新しいタイプに応じたクラスを追加します
+            messageBox.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700', 'bg-blue-100', 'text-blue-700');
+            if (type === 'error') {
+                messageBox.classList.add('bg-red-100', 'text-red-700');
+            } else if (type === 'success') {
+                messageBox.classList.add('bg-green-100', 'text-green-700');
+            } else { // info
+                messageBox.classList.add('bg-blue-100', 'text-blue-700');
+            }
+            messageBox.style.display = 'block'; // 表示を確実にします
+        }
+
+        /**
+         * メッセージボックスを非表示にする関数
+         */
+        function hideMessage() {
+            document.getElementById('messageBox').classList.add('hidden');
+        }
+
+        /**
+         * 指定された数字をぐー数のみの項で構成された計算に分解する関数 (BFSアルゴリズムを使用)
+         * 「できるだけ少ない項の数で」という要件を満たすため、幅優先探索 (BFS) を使用します。
+         * これにより、最短の経路（最も少ない項数）が保証されます。
+         * 「必要がない場合は、同じぐー数を2度使わないこと」という要件については、
+         * 最も少ない項数を達成するために再利用が必要な場合は、再利用を許可します。
+         * これは、一般的な「両替問題」の解法に準拠しています。
+         *
+         * @param {number} target - ぐー数分解したい数値
+         * @returns {number[]|null} - 分解されたぐー数の配列、または分解できない場合はnull
+         */
+        function guusuuDecomposition(target) {
+            // 入力値のバリデーション
+            if (isNaN(target) || target < 0) {
+                showMessage("無効な入力です。正の数値を入力してください。", "error");
+                return null;
+            }
+            if (target === 0) {
+                return []; // 0は空の配列で分解可能
+            }
+
+            // 浮動小数点数の精度問題を避けるため、すべての数値を整数にスケールします
+            const scaledTarget = Math.round(target * scaleFactor);
+            // スケール後のターゲットが0だが元のターゲットが0でない場合（例: 0.00001など）
+            if (scaledTarget === 0 && target !== 0) {
+                showMessage("入力された数値は小さすぎて分解できません。", "error");
+                return null;
+            }
+
+            const scaledGuusuu = guusuuNumbers.map(num => Math.round(num * scaleFactor));
+            // BFSの探索効率のために、ぐー数を昇順にソートします
+            scaledGuusuu.sort((a, b) => a - b);
+
+            // BFSのためのキュー: [現在の合計値 (スケール済み), [現在の経路 (元の値)]]
+            const queue = [[0, []]];
+            // 既に訪問した合計値を記録するセット。これにより、無限ループや重複計算を防ぎます
+            const visited = new Set();
+            visited.add(0); // 初期状態の0を追加
+
+            let head = 0; // キューの先頭を指すポインタ (Array.shift()の代わりに効率化)
+
+            // ブラウザのフリーズを防ぐための安全制限
+            const maxQueueSize = 250000; // キューの最大サイズを制限
+            const maxIterations = 2500000; // 最大イテレーション数を制限
+            let iterations = 0;
+
+            // BFSループ
+            while (head < queue.length && iterations < maxIterations) {
+                iterations++;
+                const [currentSumScaled, currentPath] = queue[head++];
+
+                // 現在の合計値がターゲットに非常に近い場合、分解成功と見なします
+                // 浮動小数点数の比較のため、1単位未満の差は許容します
+                if (Math.abs(currentSumScaled - scaledTarget) < 1) {
+                    return currentPath; // 最短経路（最も少ない項数）が見つかりました
+                }
+
+                // 各ぐー数を使って次の状態を探索します
+                for (const guusuu of scaledGuusuu) {
+                    const nextSumScaled = currentSumScaled + guusuu;
+
+                    // プルーニング: 次の合計値がターゲットを大幅に超える場合、この経路は無効です
+                    // 最大のぐー数の2倍を許容範囲とします（ちょうどターゲットを超える場合を考慮）
+                    if (nextSumScaled > scaledTarget + scaledGuusuu[scaledGuusuu.length - 1] * 2) {
+                        continue;
+                    }
+
+                    // 既に訪問済みの合計値であればスキップします
+                    if (visited.has(nextSumScaled)) {
+                        continue;
+                    }
+
+                    // キューのサイズが制限を超えていない場合のみ追加します
+                    if (queue.length < maxQueueSize) {
+                        visited.add(nextSumScaled);
+                        queue.push([nextSumScaled, [...currentPath, guusuu / scaleFactor]]);
+                    } else {
+                        // キューのサイズ制限に達した場合、計算が複雑すぎる可能性があります
+                        // この場合は、これ以上探索せず、ループを終了します
+                        // showMessage("計算が複雑すぎるため、完全な分解を見つけられない可能性があります。", "info");
+                        // return null; // または警告を出して続行
+                    }
+                }
+            }
+
+            return null; // 指定された制限内で分解が見つかりませんでした
+        }
+
+        // 「ぐー数分解する」ボタンのクリックイベントリスナー
+        document.getElementById('decomposeButton').addEventListener('click', async () => {
+            const inputElement = document.getElementById('numberInput');
+            const resultElement = document.getElementById('decompositionResult');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const decomposeButton = document.getElementById('decomposeButton');
+
+            hideMessage(); // 前のメッセージをクリア
+            resultElement.textContent = ''; // 前の結果をクリア
+
+            const inputValue = parseFloat(inputElement.value);
+
+            // 入力値の基本的なバリデーション
+            if (isNaN(inputValue)) {
+                showMessage("有効な数値を入力してください。", "error");
+                return;
+            }
+            if (inputValue < 0) {
+                showMessage("正の数値を入力してください。", "error");
+                return;
+            }
+
+            // ボタンを無効化し、ローディングインジケーターを表示
+            decomposeButton.disabled = true;
+            loadingIndicator.classList.remove('hidden');
+
+            // UIの更新を許可するために、短い遅延を挟んでから計算を実行します
+            setTimeout(() => {
+                const decomposition = guusuuDecomposition(inputValue);
+
+                if (decomposition) {
+                    // 0.75を"3/4"として表示するように整形します
+                    const sumString = decomposition.map(num => {
+                        if (num === 0.75) return "3/4";
+                        return num;
+                    }).join(' + ');
+                    resultElement.textContent = `${inputValue} = ${sumString} (項数: ${decomposition.length})`;
+                    showMessage("ぐー数分解が完了しました。", "success");
+                } else {
+                    resultElement.textContent = 'この数字はぐー数分解できませんでした。';
+                    showMessage("指定された数字は、ぐー数のみの項で構成された計算に直すことができませんでした。または、計算が複雑すぎるため、現在の制限内で解を見つけることができませんでした。", "error");
+                }
+
+                // ボタンを再度有効化し、ローディングインジケーターを非表示
+                decomposeButton.disabled = false;
+                loadingIndicator.classList.add('hidden');
+            }, 10); // 10ミリ秒の遅延
+        });
+
+        // ページ読み込み時の初期メッセージ表示
+        showMessage("ぐー数分解したい数字を入力し、「ぐー数分解する」ボタンを押してください。", "info");
+    </script>
+</body>
+</html>
