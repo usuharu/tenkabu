@@ -54,9 +54,11 @@
     </div>
 
     <script>
-        // Define original guusuu numbers
+        // Define original guusuu numbers, now including factorials of guusuu numbers (5! and 7!)
         const originalGuusuuNumbers = [
-            0.75, 1, 5, 7, 19, 31, 33, 47, 206, 519, 821, 1381, 4137
+            0.75, 1, 5, 7, 19, 31, 33, 47, 206, 519, 821, 1381, 4137,
+            120, // 5!
+            5040 // 7!
         ];
 
         // Map to store how each number should be displayed (e.g., "5!", "3 * 7")
@@ -69,8 +71,11 @@
         });
         // Special case for 3/4
         displayRepresentationMap.set(0.75, "3/4");
+        // Special cases for guusuu factorials
+        displayRepresentationMap.set(120, "5!"); // 5! = 120
+        displayRepresentationMap.set(5040, "7!"); // 7! = 5040
 
-        // Helper to calculate factorial
+        // Helper to calculate factorial (though not directly used for generating terms anymore, useful for reference)
         function calculateFactorial(n) {
             if (n < 0) return NaN;
             if (n === 0 || n === 1) return 1;
@@ -81,25 +86,12 @@
             return res;
         }
 
-        // 2. Calculate and add guusuu factorials to the terms and display map
-        const guusuuFactorials = [];
-        const factorialsToConsider = [5, 7]; // Only 5! and 7! are guusuu factorials
-        for (const num of factorialsToConsider) {
-            if (originalGuusuuNumbers.includes(num)) {
-                const factValue = calculateFactorial(num);
-                guusuuFactorials.push(factValue);
-                // Factorials take precedence in display
-                displayRepresentationMap.set(factValue, `${num}!`);
-            }
-        }
-
-        // Combine original and factorial guusuu numbers for initial set of terms
-        // This set is used for the BFS (sum/difference) priority
-        const basicTermsForBFS = Array.from(new Set([...originalGuusuuNumbers, ...guusuuFactorials]));
+        // The basic terms for BFS (sum/difference) are now just the originalGuusuuNumbers
+        const basicTermsForBFS = Array.from(new Set([...originalGuusuuNumbers]));
         basicTermsForBFS.sort((a, b) => a - b);
 
 
-        // 3. Add products of original guusuu numbers to the terms and display map
+        // 2. Add products of original guusuu numbers to the terms and display map
         let allPossibleTerms = new Set([...basicTermsForBFS]); // Start with basic terms
         for (let i = 0; i < originalGuusuuNumbers.length; i++) {
             for (let j = 0; j < originalGuusuuNumbers.length; j++) {
@@ -288,9 +280,9 @@
                 return;
             }
             if (inputValue < 0) {
-                showMessage("正の数値を入力してください。", "error");
-                return;
-            }
+                    showMessage("正の数値を入力してください。", "error");
+                    return;
+                }
 
             // ボタンを無効化し、ローディングインジケーターを表示
             decomposeButton.disabled = true;
