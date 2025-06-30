@@ -127,14 +127,8 @@
 
             let head = 0; // キューの先頭を指すポインタ (Array.shift()の代わりに効率化)
 
-            // ブラウザのフリーズを防ぐための安全制限
-            const maxQueueSize = 250000; // キューの最大サイズを制限
-            const maxIterations = 2500000; // 最大イテレーション数を制限
-            let iterations = 0;
-
             // BFSループ
-            while (head < queue.length && iterations < maxIterations) {
-                iterations++;
+            while (head < queue.length) {
                 const [currentSumScaled, currentPath] = queue[head++];
 
                 // 現在の合計値がターゲットに非常に近い場合、分解成功と見なします
@@ -158,20 +152,12 @@
                         continue;
                     }
 
-                    // キューのサイズが制限を超えていない場合のみ追加します
-                    if (queue.length < maxQueueSize) {
-                        visited.add(nextSumScaled);
-                        queue.push([nextSumScaled, [...currentPath, guusuu / scaleFactor]]);
-                    } else {
-                        // キューのサイズ制限に達した場合、計算が複雑すぎる可能性があります
-                        // この場合は、これ以上探索せず、ループを終了します
-                        // showMessage("計算が複雑すぎるため、完全な分解を見つけられない可能性があります。", "info");
-                        // return null; // または警告を出して続行
-                    }
+                    visited.add(nextSumScaled);
+                    queue.push([nextSumScaled, [...currentPath, guusuu / scaleFactor]]);
                 }
             }
 
-            return null; // 指定された制限内で分解が見つかりませんでした
+            return null; // 分解が見つかりませんでした
         }
 
         // 「ぐー数分解する」ボタンのクリックイベントリスナー
@@ -214,7 +200,7 @@
                     showMessage("ぐー数分解が完了しました。", "success");
                 } else {
                     resultElement.textContent = 'この数字はぐー数分解できませんでした。';
-                    showMessage("指定された数字は、ぐー数のみの項で構成された計算に直すことができませんでした。または、計算が複雑すぎるため、現在の制限内で解を見つけることができませんでした。", "error");
+                    showMessage("指定された数字は、ぐー数のみの項で構成された計算に直すことができませんでした。", "error");
                 }
 
                 // ボタンを再度有効化し、ローディングインジケーターを非表示
