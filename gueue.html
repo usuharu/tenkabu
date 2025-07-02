@@ -114,28 +114,30 @@
         // basicTermsForBFS only uses original guusuu numbers (no products)
         const basicTermsForBFS = Array.from(new Set([...originalGuusuuNumbers])).sort((a, b) => a - b);
 
-        // This list contains only the terms that can introduce decimals (like 0.75)
-        // and are relevant for determining the overall scaling factor for the target.
-        const termsForScalingFactorCalculation = Array.from(new Set([...originalGuusuuNumbers]));
-
 
         /**
          * Determine the appropriate scaleFactor to convert input and guusuu numbers to integers.
-         * This now considers all possible terms (including products) to ensure sufficient precision.
-         * @param {number} num - The input number to be decomposed.
-         * @param {number[]} termsForDecimalCheck - The terms whose decimal places should be considered for scaling.
+         * @param {number} num - The number to be scaled.
+         * @param {boolean} isForIntegerDecomposition - True if this is for integer decomposition (use minimal scaling).
+         * @param {number[]} [allPossibleTermsForDecimalCheck] - All terms to consider for max decimal places if not integer context.
          * @returns {number} - The calculated scale factor.
          */
-        function getDynamicScaleFactor(num, termsForDecimalCheck) { // Renamed parameter
+        function getDynamicScaleFactor(num, isForIntegerDecomposition, allPossibleTermsForDecimalCheck = []) {
             let maxDecimalPlaces = 0;
 
-            // Check input number's decimal places
-            maxDecimalPlaces = Math.max(maxDecimalPlaces, getDecimalPlaces(num));
-
-            // Check termsForDecimalCheck's decimal places
-            termsForDecimalCheck.forEach(term => {
-                maxDecimalPlaces = Math.max(maxDecimalPlaces, getDecimalPlaces(term));
-            });
+            if (isForIntegerDecomposition) {
+                // For integer decomposition, only consider the input number itself and 0.75
+                maxDecimalPlaces = Math.max(maxDecimalPlaces, getDecimalPlaces(num));
+                if (originalGuusuuNumbers.includes(0.75)) {
+                    maxDecimalPlaces = Math.max(maxDecimalPlaces, getDecimalPlaces(0.75));
+                }
+            } else {
+                // For decimal decomposition or when scaling terms for DP/BFS, consider all relevant terms
+                maxDecimalPlaces = Math.max(maxDecimalPlaces, getDecimalPlaces(num));
+                allPossibleTermsForDecimalCheck.forEach(term => {
+                    maxDecimalPlaces = Math.max(maxDecimalPlaces, getDecimalPlaces(term));
+                });
+            }
 
             let factor = 1;
             for (let i = 0; i < maxDecimalPlaces; i++) {
@@ -200,7 +202,8 @@
         }
 
         // Max target value for DP array or BFS visited set size (scaled)
-        const MAX_SCALED_TARGET_FOR_DP_BFS = 250000; 
+        // Adjusted to a safer value to prevent RangeError and allow more solutions
+        const MAX_SCALED_TARGET_FOR_DP_BFS = 500000; // Increased to allow more solutions
 
         /**
          * 指定された数字をぐー数のみの項で構成された計算に分解する関数 (動的計画法を使用)
@@ -213,8 +216,8 @@
          * @returns {{decomposition: number[], termsCount: number, uniqueTermsCount: number}|null} - 分解されたぐー数の配列 (スケール済み)と統計情報、または分解できない場合はnull
          */
         function guusuuDecompositionDP_SumOnly(target, availableTerms) {
-            if (target < 0) return null; // DP cannot handle negative targets directly for sum-only
-            if (target === 0) return { decomposition: [], termsCount: 0, uniqueTermsCount: 0 }; // Base case for 0
+            if (target < 0) return null;
+            if (target === 0) return { decomposition: [], termsCount: 0, uniqueTermsCount: 0 };
             if (target > MAX_SCALED_TARGET_FOR_DP_BFS) {
                 console.warn("DP target exceeds max limit, returning null:", target);
                 return null;
@@ -273,7 +276,6 @@
          * @returns {{decomposition: number[], termsCount: number, uniqueTermsCount: number}|null} - 分解されたぐー数の配列 (スケール済み、正負の数を含む)と統計情報、または分解できない場合はnull
          */
         function guusuuDecompositionBFS_SumDiff(target, availableTerms) {
-            // Add the new check
             if (target > MAX_SCALED_TARGET_FOR_DP_BFS) {
                 console.warn("BFS target exceeds max limit, returning null:", target);
                 return null;
@@ -286,15 +288,15 @@
             visited.add(0);
 
             // 探索範囲の制限 (フリーズ防止のため)
-            // 目標値の約5倍の範囲を探索し、パスの長さも制限を緩和
-            const maxAbsScaledValue = Math.max(target * 5, 100000); // Increased limit
-            const maxPathLength = 20; // Increased limit
+            // 目標値の約10倍の範囲を探索し、パスの長さも制限を緩和
+            const maxAbsScaledValue = Math.max(target * 10, 200000); // Increased limit
+            const maxPathLength = 30; // Increased limit
 
             let head = 0;
             let iterationCount = 0; // Safety break for very long BFS
             while (head < queue.length) {
                 iterationCount++;
-                if (iterationCount > 1000000) { // 100万イテレーションを超えたら打ち切り (さらに緩和)
+                if (iterationCount > 2000000) { // 200万イテレーションを超えたら打ち切り (さらに緩和)
                     console.warn("BFS iteration limit reached, stopping.");
                     return null;
                 }
@@ -332,7 +334,7 @@
                     }
                 }
                 // キューのサイズが大きすぎた場合の安全策 (フリーズ対策)
-                if (queue.length > 500000) { // 50万件を超えたら打ち切り (さらに緩和)
+                if (queue.length > 1000000) { // 100万件を超えたら打ち切り (さらに緩和)
                     console.warn("BFS queue too large, stopping to prevent freeze.");
                     return null;
                 }
@@ -352,21 +354,26 @@
             return uniqueTerms.size;
         }
 
-        // New constant for precomputation limit
-        const MAX_PRECOMPUTE_INTEGER = 25; // Max integer for which precomputation is attempted with DP/BFS
+        // Helper to check if a number is a power of 10
+        const isPowerOf10 = (num) => {
+            if (num <= 0 || !Number.isInteger(num)) return false;
+            if (num === 1) return true; // 1 is 10^0
+            while (num > 1 && num % 10 === 0) {
+                num /= 10;
+            }
+            return num === 1;
+        };
 
-        // Precompute solutions for specific integer ranges and powers of 10
+        // Precompute solutions for powers of 10 and small integers (within MAX_SCALED_TARGET_FOR_DP_BFS limit)
         const precomputedSolutions = new Map();
 
         // Precomputation function
         (function precomputeSolutions() {
-            // Use a temporary scale factor just for precomputation of integers <= MAX_PRECOMPUTE_INTEGER
-            const tempScaleFactor = getDynamicScaleFactor(MAX_PRECOMPUTE_INTEGER, termsForScalingFactorCalculation); 
-
             console.log("Precomputing solutions...");
-            for (let i = 1; i <= MAX_PRECOMPUTE_INTEGER; i++) {
+            // Precompute for integers from 1 to 100
+            for (let i = 1; i <= 100; i++) {
                 // Skip if it's an original guusuu number (handled separately or has specific display)
-                if (originalGuusuuNumbers.includes(i) || (i === 0.75 && originalGuusuuNumbers.includes(0.75))) { // Adjusted condition for 0.75
+                if (originalGuusuuNumbers.includes(i) || (i === 0.75 && originalGuusuuNumbers.includes(0.75))) {
                     if (!displayRepresentationMap.has(i)) {
                          displayRepresentationMap.set(i, i.toString());
                     }
@@ -375,7 +382,15 @@
                     continue; 
                 }
 
+                // Use a scale factor of 4 for small integers to correctly handle 0.75
+                const tempScaleFactor = getDynamicScaleFactor(i, true); // true for isForIntegerDecomposition
                 const scaledI = Math.round(i * tempScaleFactor);
+
+                if (scaledI > MAX_SCALED_TARGET_FOR_DP_BFS) {
+                    console.warn(`Integer ${i} (scaled: ${scaledI}) is too large for precomputation, skipping.`);
+                    continue;
+                }
+
                 const scaledBasicTermsForBFS_Pre = basicTermsForBFS.map(num => Math.round(num * tempScaleFactor));
                 const scaledAllTermsForDP_Pre = allTermsForDP.map(num => Math.round(num * tempScaleFactor));
 
@@ -413,11 +428,16 @@
             // Precompute powers of 10 if not already efficiently represented
             const powersOf10 = [10, 100, 1000, 10000, 100000, 1000000];
             powersOf10.forEach(p => {
-                // Only precompute powers of 10 that are within the MAX_SCALED_TARGET_FOR_DP_BFS limit
-                const pScaleFactor = getDynamicScaleFactor(p, termsForScalingFactorCalculation);
+                // Skip if already precomputed by the 1-100 loop or is an original guusuu
+                if (precomputedSolutions.has(p) || originalGuusuuNumbers.includes(p)) {
+                    return;
+                }
+
+                // Use a scale factor of 4 for powers of 10 in precomputation
+                const pScaleFactor = getDynamicScaleFactor(p, true); // true for isForIntegerDecomposition
                 const scaledP = Math.round(p * pScaleFactor);
 
-                if (scaledP <= MAX_SCALED_TARGET_FOR_DP_BFS && !precomputedSolutions.has(p) && !originalGuusuuNumbers.includes(p)) {
+                if (scaledP <= MAX_SCALED_TARGET_FOR_DP_BFS) {
                      const scaledBasicTermsForBFS_P = basicTermsForBFS.map(num => Math.round(num * pScaleFactor));
                      const scaledAllTermsForDP_P = allTermsForDP.map(num => Math.round(num * pScaleFactor));
 
@@ -447,6 +467,8 @@
                             termsCount: bestSolutionObj.termsCount
                         });
                      }
+                } else {
+                    console.log(`Power of 10 (${p}) is too large for precomputation (scaled: ${scaledP}).`);
                 }
             });
 
@@ -472,13 +494,6 @@
             }).join(' ').trim();
         }
 
-        // Helper to count terms in a formatted decomposition string (not strictly needed with object returns)
-        // function countFormattedTerms(decompositionString) {
-        //     if (!decompositionString) return 0;
-        //     const matches = decompositionString.match(/[+-]/g);
-        //     return (matches ? matches.length : 0) + 1;
-        // }
-
         // Main decomposition function (handles integer, decimal, and large number logic)
         async function decomposeGuusuu(inputValue) {
             // Check if the input value is one of the original guusuu numbers (or very close)
@@ -497,7 +512,7 @@
                 // Case 1: Integer input (including larger integers for 3-digit chunking)
                 console.log("Processing integer:", inputValue);
 
-                // Check precomputed solutions first for integers
+                // Check precomputed solutions first for integers (1-100) and powers of 10
                 if (precomputedSolutions.has(inputValue)) {
                     const precomputed = precomputedSolutions.get(inputValue);
                     return {
@@ -506,7 +521,41 @@
                     };
                 }
 
-                // If integer is large (>= 1000), attempt 3-digit chunking
+                // Determine scale factor for the current input value (integer context)
+                const dynamicScaleFactorForInput = getDynamicScaleFactor(inputValue, true); // true for isForIntegerDecomposition
+                const scaledInputValueForCheck = Math.round(inputValue * dynamicScaleFactorForInput);
+
+                // If it's a power of 10 and too large for direct DP/BFS, decompose it into products of smaller powers of 10
+                if (isPowerOf10(inputValue) && scaledInputValueForCheck > MAX_SCALED_TARGET_FOR_DP_BFS) {
+                    console.log(`Large power of 10 (${inputValue}) cannot be decomposed by direct DP/BFS. Attempting product decomposition.`);
+                    
+                    // Find the largest precomputed power of 10 that is smaller than inputValue
+                    let largestDecomposablePowerOf10 = 1;
+                    const precomputedPowers = Array.from(precomputedSolutions.keys()).filter(k => isPowerOf10(k) && k < inputValue);
+                    if (precomputedPowers.length > 0) {
+                        largestDecomposablePowerOf10 = Math.max(...precomputedPowers);
+                    }
+
+                    if (largestDecomposablePowerOf10 > 1) {
+                        const factor1 = largestDecomposablePowerOf10;
+                        const factor2 = inputValue / largestDecomposablePowerOf10;
+
+                        const result1 = await decomposeGuusuu(factor1);
+                        const result2 = await decomposeGuusuu(factor2);
+
+                        if (result1 && result2) {
+                            return {
+                                formula: `(${result1.formula}) * (${result2.formula})`,
+                                terms: result1.terms + result2.terms
+                            };
+                        }
+                    }
+                    // If unable to decompose into smaller powers of 10, then fall back to raw number (should be rare now)
+                    console.warn(`Could not decompose large power of 10 ${inputValue} into smaller guusuu products. Returning raw number.`);
+                    return { formula: inputValue.toString(), terms: 1 };
+                }
+
+                // If integer is large (>= 1000) and not handled as a large power of 10, attempt 3-digit chunking
                 if (inputValue >= 1000) {
                     let tempValue = inputValue;
                     const parts = [];
@@ -532,7 +581,6 @@
                             const currentMultiplier = part.multiplier; // e.g., 1000
 
                             // Decompose the chunk itself (e.g., 123)
-                            // These chunks will be small enough for direct DP/BFS (or precomputed)
                             const chunkResult = await decomposeGuusuu(chunkValue); // Recursively call for chunks
                             if (!chunkResult) {
                                 possibleDecomposition = false;
@@ -544,10 +592,13 @@
                             if (currentMultiplier === 1) {
                                 formulaParts.push(chunkDecomposition);
                             } else {
-                                // Decompose the multiplier (e.g., 1000)
+                                // Decompose the multiplier (e.g., 1000, 1000000)
                                 const multiplierResult = await decomposeGuusuu(currentMultiplier); // Recursively call for multipliers
                                 if (!multiplierResult) {
-                                    // If multiplier itself cannot be decomposed by guusuu terms, fallback to using the number
+                                    // If multiplier itself cannot be decomposed by guusuu terms (e.g., too large power of 10),
+                                    // fallback to using the number directly in the formula. This case should now be rare
+                                    // due to the new large power of 10 handling above.
+                                    console.warn(`Multiplier ${currentMultiplier} could not be decomposed. Using raw number.`);
                                     formulaParts.push(`(${chunkDecomposition}) * ${currentMultiplier}`);
                                     totalTerms += 1; // Count multiplier as 1 term
                                 } else {
@@ -569,22 +620,19 @@
                     return null;
                 }
                 
-                // For integers < 1000 (or if inputValue was 0, or if chunking was not applicable/failed to find solution)
-                // This will also be called for chunks from the 3-digit chunking.
-                const dynamicScaleFactor = getDynamicScaleFactor(inputValue, termsForScalingFactorCalculation);
-                const scaledInputValue = Math.round(inputValue * dynamicScaleFactor);
-
-                if (scaledInputValue > MAX_SCALED_TARGET_FOR_DP_BFS) {
-                    console.warn(`Input value ${inputValue} (scaled: ${scaledInputValue}) is too large for direct DP/BFS. No decomposition found by this method.`);
-                    return null; // Explicitly return null if too large
+                // Fallback for smaller integers (< 1000) not covered by precomputation
+                // The scaledInputValueForCheck and dynamicScaleFactorForInput are already calculated.
+                if (scaledInputValueForCheck > MAX_SCALED_TARGET_FOR_DP_BFS) {
+                    console.warn(`Input value ${inputValue} (scaled: ${scaledInputValueForCheck}) is too large for direct DP/BFS. No decomposition found by this method.`);
+                    return null; 
                 }
 
-                const scaledBasicTermsForBFS = basicTermsForBFS.map(num => Math.round(num * dynamicScaleFactor));
-                const scaledAllTermsForDP = allTermsForDP.map(num => Math.round(num * dynamicScaleFactor));
+                const scaledBasicTermsForBFS = basicTermsForBFS.map(num => Math.round(num * dynamicScaleFactorForInput));
+                const scaledAllTermsForDP = allTermsForDP.map(num => Math.round(num * dynamicScaleFactorForInput));
 
                 let bestSolutionObj = null;
-                const bfsResultObj = guusuuDecompositionBFS_SumDiff(scaledInputValue, scaledBasicTermsForBFS);
-                const dpResultObj = guusuuDecompositionDP_SumOnly(scaledInputValue, scaledAllTermsForDP);
+                const bfsResultObj = guusuuDecompositionBFS_SumDiff(scaledInputValueForCheck, scaledBasicTermsForBFS);
+                const dpResultObj = guusuuDecompositionDP_SumOnly(scaledInputValueForCheck, scaledAllTermsForDP);
 
                 if (bfsResultObj) {
                     bestSolutionObj = bfsResultObj;
@@ -605,7 +653,7 @@
 
                 if (bestSolutionObj) {
                     return {
-                        formula: formatDecomposition(bestSolutionObj.decomposition.map(term => term / dynamicScaleFactor)),
+                        formula: formatDecomposition(bestSolutionObj.decomposition.map(term => term / dynamicScaleFactorForInput)),
                         terms: bestSolutionObj.termsCount
                     };
                 } else {
