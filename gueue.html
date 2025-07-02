@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ぐー数分解</title>
-    <!-- Tailwind CSSを読み込み、スタイリングに使用します -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Interフォントを読み込みます -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <style>
         /* 全体のフォントをInterに設定し、背景色を調整します */
@@ -27,7 +25,7 @@
             <input
                 type="number"
                 id="numberInput"
-                placeholder="例: 10, 0.75"
+                placeholder="例: 10, 0.75, 3.12, 123456"
                 class="shadow-sm appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out"
                 step="any" /* 小数点以下の入力も許可します */
             >
@@ -49,7 +47,6 @@
             <p id="decompositionResult" class="text-gray-700 whitespace-pre-wrap"></p>
         </div>
 
-        <!-- メッセージ表示用のボックス -->
         <div id="messageBox" class="hidden mt-4 p-3 rounded-lg text-sm" role="alert"></div>
     </div>
 
@@ -64,17 +61,6 @@
         // Map to store how each number should be displayed (e.g., "5!", "3 * 7")
         // Prioritize specific representations (3/4, factorials, then products, then original number)
         const displayRepresentationMap = new Map();
-
-        // Helper to calculate factorial
-        function calculateFactorial(n) {
-            if (n < 0) return NaN;
-            if (n === 0 || n === 1) return 1;
-            let res = 1;
-            for (let i = 2; i <= n; i++) {
-                res *= i;
-            }
-            return res;
-        }
 
         // Helper to find GCD (Greatest Common Divisor) for LCM calculation
         function gcd(a, b) {
@@ -128,7 +114,6 @@
         // basicTermsForBFS only uses original guusuu numbers (no products)
         const basicTermsForBFS = Array.from(new Set([...originalGuusuuNumbers])).sort((a, b) => a - b);
 
-
         /**
          * Determine the appropriate scaleFactor to convert input and guusuu numbers to integers.
          * This now considers all possible terms (including products) to ensure sufficient precision.
@@ -157,8 +142,31 @@
             return (factor * 4) / gcd(factor, 4);
         }
 
-        // Precompute solutions for integers from 1 to 100
-        const precomputedSolutions = new Map();
+        /**
+         * Convert a decimal number to its simplest fractional form [numerator, denominator].
+         * @param {number} value - The decimal number.
+         * @returns {[number, number]} - An array containing [numerator, denominator].
+         */
+        function toFraction(value) {
+            if (Number.isInteger(value)) {
+                return [value, 1];
+            }
+            const tolerance = 1e-9; // Small tolerance for floating point errors
+            let numerator = value;
+            let denominator = 1;
+
+            // Multiply by 10 until it's effectively an integer
+            // Cap denominator to prevent excessively large numbers
+            const maxDenominator = 1e6; // Limit to 1 million for performance/precision
+            while (Math.abs(Math.round(numerator) - numerator) > tolerance && denominator < maxDenominator) {
+                numerator *= 10;
+                denominator *= 10;
+            }
+            numerator = Math.round(numerator); // Ensure it's an integer after scaling
+
+            const commonDivisor = gcd(numerator, denominator);
+            return [numerator / commonDivisor, denominator / commonDivisor];
+        }
 
         /**
          * メッセージボックスにメッセージを表示する関数
@@ -198,8 +206,11 @@
          * @returns {{decomposition: number[], termsCount: number, uniqueTermsCount: number}|null} - 分解されたぐー数の配列 (スケール済み)と統計情報、または分解できない場合はnull
          */
         function guusuuDecompositionDP_SumOnly(target, availableTerms) {
-            // console.log("DP START: Target (scaled):", target);
-            // console.log("DP START: Available Terms (scaled):", availableTerms);
+            if (target < 0) return null; // DP cannot handle negative targets directly for sum-only
+            if (target === 0) return { decomposition: [], termsCount: 0, uniqueTermsCount: 0 }; // Base case for 0
+            
+            console.log("DP START: Target (scaled):", target);
+            console.log("DP START: Available Terms (scaled):", availableTerms);
             const dp = new Array(target + 1).fill(Infinity);
             const path = new Array(target + 1).fill(null);
 
@@ -217,7 +228,7 @@
             }
 
             if (dp[target] === Infinity) {
-                // console.log("DP END: No solution found for target", target);
+                console.log("DP END: No solution found for target", target);
                 return null;
             }
 
@@ -233,7 +244,7 @@
                 currentSum -= lastGuusuuScaled;
             }
             const finalResult = result.reverse();
-            // console.log("DP END: Solution found for target", target, "Result (scaled):", finalResult);
+            console.log("DP END: Solution found for target", target, "Result (scaled):", finalResult);
             return {
                 decomposition: finalResult,
                 termsCount: dp[target],
@@ -251,8 +262,8 @@
          * @returns {{decomposition: number[], termsCount: number, uniqueTermsCount: number}|null} - 分解されたぐー数の配列 (スケール済み、正負の数を含む)と統計情報、または分解できない場合はnull
          */
         function guusuuDecompositionBFS_SumDiff(target, availableTerms) {
-            // console.log("BFS START: Target (scaled):", target);
-            // console.log("BFS START: Available Terms (scaled):", availableTerms);
+            console.log("BFS START: Target (scaled):", target);
+            console.log("BFS START: Available Terms (scaled):", availableTerms);
             const queue = [[0, []]]; // [current_scaled_sum, path_list]
             const visited = new Set();
             visited.add(0);
@@ -275,7 +286,7 @@
                 // 浮動小数点数の誤差を考慮してターゲットに非常に近いかチェック
                 // 誤差許容範囲を少し広げる (スケールされた値なので1未満は許容)
                 if (Math.abs(currentSumScaled - target) < 1) {
-                    // console.log("BFS Found solution at currentSumScaled:", currentSumScaled, "Path (scaled):", currentPath);
+                    console.log("BFS Found solution at currentSumScaled:", currentSumScaled, "Path (scaled):", currentPath);
                     return {
                         decomposition: currentPath,
                         termsCount: currentPath.length,
@@ -283,7 +294,7 @@
                     };
                 }
 
-                // パスが長くなりすぎたら枝刈り
+                // パスが長すぎたら枝刈り
                 if (currentPath.length >= maxPathLength) {
                     continue;
                 }
@@ -303,13 +314,13 @@
                         queue.push([nextDiff, [...currentPath, -term]]); // 負の数として記録
                     }
                 }
-                // キューのサイズが大きくなりすぎた場合の安全策 (フリーズ対策)
+                // キューのサイズが大きすぎた場合の安全策 (フリーズ対策)
                 if (queue.length > 500000) { // 50万件を超えたら打ち切り (さらに緩和)
                     console.warn("BFS queue too large, stopping to prevent freeze.");
                     return null;
                 }
             }
-            // console.log("BFS END: No solution found for target", target);
+            console.log("BFS END: No solution found for target", target);
             return null; // 解が見つからなかった
         }
 
@@ -324,53 +335,362 @@
             return uniqueTerms.size;
         }
 
-        // Precompute solutions for integers from 1 to 100 when the page loads
-        // この処理はページ読み込み時に一度だけ実行されます
-        (function precomputeSolutions() {
-            // 100までの整数とすべてのぐー数（積を含む）をカバーするスケールファクターを計算
-            const tempScaleFactor = getDynamicScaleFactor(100, allTermsForDP); 
-            const scaledBasicTermsForBFS = basicTermsForBFS.map(num => Math.round(num * tempScaleFactor));
-            const scaledAllTermsForDP = allTermsForDP.map(num => Math.round(num * tempScaleFactor));
+        // Precompute solutions for specific integer ranges and powers of 10
+        const precomputedSolutions = new Map();
 
+        // Precomputation function
+        (function precomputeSolutions() {
+            // Precompute for 1 to 100 (excluding 0.75 which is a direct guusuu)
+            // Use a temporary scale factor just for precomputation of integers <= 100
+            const tempScaleFactor = getDynamicScaleFactor(100, allTermsForDP); // Scale based on max decimal places for 1-100
+
+            console.log("Precomputing solutions...");
             for (let i = 1; i <= 100; i++) {
+                // Skip if it's an original guusuu number (handled separately or has specific display)
+                if (originalGuusuuNumbers.includes(i) || (i === 75 && originalGuusuuNumbers.includes(0.75))) {
+                    if (!displayRepresentationMap.has(i)) { // Ensure 0.75 is mapped
+                         displayRepresentationMap.set(i, i.toString());
+                    }
+                    if (i === 120) displayRepresentationMap.set(i, "5!");
+                    if (i === 5040) displayRepresentationMap.set(i, "7!");
+                    continue; 
+                }
+
                 const scaledI = Math.round(i * tempScaleFactor);
+                const scaledBasicTermsForBFS_Pre = basicTermsForBFS.map(num => Math.round(num * tempScaleFactor));
+                const scaledAllTermsForDP_Pre = allTermsForDP.map(num => Math.round(num * tempScaleFactor));
+
                 let bestSolutionObj = null;
 
-                // Step 1: BFS (Sum/Diff) で分解を試みる
-                const bfsResultObj = guusuuDecompositionBFS_SumDiff(scaledI, scaledBasicTermsForBFS);
+                const bfsResultObj = guusuuDecompositionBFS_SumDiff(scaledI, scaledBasicTermsForBFS_Pre);
+                const dpResultObj = guusuuDecompositionDP_SumOnly(scaledI, scaledAllTermsForDP_Pre);
 
-                // Step 2: DP (Sum Only) で分解を試みる
-                const dpResultObj = guusuuDecompositionDP_SumOnly(scaledI, scaledAllTermsForDP);
-
-                // 結果の比較と選択 (優先順位: 項数最小優先、次にユニークぐー数最大化)
-                // BFSの結果を評価
                 if (bfsResultObj) {
                     bestSolutionObj = bfsResultObj;
                 }
-
-                // DPの結果を評価し、現在の最良解と比較
                 if (dpResultObj) {
-                    if (bestSolutionObj === null) { // BFSで解が見つからなかった場合
+                    if (bestSolutionObj === null) {
                         bestSolutionObj = dpResultObj;
                     } else {
-                        // 優先順位1: 項数を最小化
                         if (dpResultObj.termsCount < bestSolutionObj.termsCount) {
                             bestSolutionObj = dpResultObj;
                         } else if (dpResultObj.termsCount === bestSolutionObj.termsCount) {
-                            // 優先順位2: 項数が同じ場合、ユニークなぐー数の数を最大化
                             if (dpResultObj.uniqueTermsCount > bestSolutionObj.uniqueTermsCount) {
                                 bestSolutionObj = dpResultObj;
                             }
                         }
                     }
                 }
+
                 if (bestSolutionObj) {
-                    // スケールを元に戻した形で保存
-                    precomputedSolutions.set(i, bestSolutionObj.decomposition.map(term => term / tempScaleFactor));
+                    const finalDecomposition = bestSolutionObj.decomposition.map(term => term / tempScaleFactor);
+                    precomputedSolutions.set(i, {
+                        decomposition: finalDecomposition,
+                        termsCount: bestSolutionObj.termsCount
+                    });
                 }
             }
-            console.log("Precomputation for 1-100 complete.");
+
+            // Precompute powers of 10 if not already efficiently represented
+            const powersOf10 = [10, 100, 1000, 10000, 100000, 1000000];
+            powersOf10.forEach(p => {
+                if (!precomputedSolutions.has(p) && !originalGuusuuNumbers.includes(p)) {
+                     const pScaleFactor = getDynamicScaleFactor(p, allTermsForDP);
+                     const scaledP = Math.round(p * pScaleFactor);
+                     const scaledBasicTermsForBFS_P = basicTermsForBFS.map(num => Math.round(num * pScaleFactor));
+                     const scaledAllTermsForDP_P = allTermsForDP.map(num => Math.round(num * pScaleFactor));
+
+                     let bestSolutionObj = null;
+                     const bfsResultObj = guusuuDecompositionBFS_SumDiff(scaledP, scaledBasicTermsForBFS_P);
+                     const dpResultObj = guusuuDecompositionDP_SumOnly(scaledP, scaledAllTermsForDP_P);
+
+                     if (bfsResultObj) {
+                        bestSolutionObj = bfsResultObj;
+                     }
+                     if (dpResultObj) {
+                        if (bestSolutionObj === null) {
+                            bestSolutionObj = dpResultObj;
+                        } else {
+                            if (dpResultObj.termsCount < bestSolutionObj.termsCount) {
+                                bestSolutionObj = dpResultObj;
+                            } else if (dpResultObj.termsCount === bestSolutionObj.termsCount) {
+                                if (dpResultObj.uniqueTermsCount > bestSolutionObj.uniqueTermsCount) {
+                                    bestSolutionObj = dpResultObj;
+                                }
+                            }
+                        }
+                    }
+                     if (bestSolutionObj) {
+                        precomputedSolutions.set(p, {
+                            decomposition: bestSolutionObj.decomposition.map(term => term / pScaleFactor),
+                            termsCount: bestSolutionObj.termsCount
+                        });
+                     }
+                }
+            });
+
+            console.log("Precomputation complete. Precomputed solutions:", precomputedSolutions);
         })();
+
+
+        // Helper to format a decomposition array into a string (e.g., "7 + 5! - 1")
+        function formatDecomposition(decompositionArray) {
+            return decompositionArray.map((num, index) => {
+                const absNum = Math.abs(num);
+                let termString;
+                if (displayRepresentationMap.has(absNum)) {
+                    termString = displayRepresentationMap.get(absNum);
+                } else {
+                    termString = absNum.toFixed(4).replace(/\.?0+$/, ''); 
+                }
+                if (num < 0) {
+                    return (index === 0 ? "-" : "- ") + termString;
+                } else {
+                    return (index === 0 ? "" : "+ ") + termString;
+                }
+            }).join(' ').trim();
+        }
+
+        // Helper to count terms in a formatted decomposition string
+        function countFormattedTerms(decompositionString) {
+            if (!decompositionString) return 0;
+            // Count '+' and '-' signs, add 1 for the first term
+            const matches = decompositionString.match(/[+-]/g);
+            return (matches ? matches.length : 0) + 1;
+        }
+
+        // Main decomposition function (handles integer, decimal, and large number logic)
+        async function decomposeGuusuu(inputValue) {
+            // Check if the input value is one of the original guusuu numbers (or very close)
+            const isDirectGuusuu = originalGuusuuNumbers.some(g => Math.abs(g - inputValue) < 1e-9);
+
+            if (isDirectGuusuu) {
+                // If it's a direct guusuu, simply display it using its mapped representation
+                const display = displayRepresentationMap.has(inputValue) ? displayRepresentationMap.get(inputValue) : inputValue.toString();
+                return {
+                    formula: `${display}`,
+                    terms: 1 // A single term
+                };
+            }
+            
+            if (Number.isInteger(inputValue)) {
+                // Case 1: Integer input (including larger integers for 3-digit chunking)
+                console.log("Processing integer:", inputValue);
+
+                if (precomputedSolutions.has(inputValue)) {
+                    const precomputed = precomputedSolutions.get(inputValue);
+                    return {
+                        formula: formatDecomposition(precomputed.decomposition),
+                        terms: precomputed.termsCount
+                    };
+                }
+
+                // If integer is > 999, attempt 3-digit chunking
+                if (inputValue >= 1000) {
+                    let tempValue = inputValue;
+                    const parts = [];
+                    let multiplier = 1; // 1, 1000, 1000000, ...
+
+                    // Break down into 3-digit chunks
+                    while (tempValue > 0) {
+                        const chunk = tempValue % 1000;
+                        if (chunk > 0) { // Only add non-zero chunks
+                            parts.unshift({ value: chunk, multiplier: multiplier });
+                        }
+                        tempValue = Math.floor(tempValue / 1000);
+                        multiplier *= 1000;
+                    }
+
+                    if (parts.length > 0) {
+                        let totalTerms = 0;
+                        const formulaParts = [];
+                        let possibleDecomposition = true;
+
+                        for (const part of parts) {
+                            const chunkValue = part.value;
+                            const currentMultiplier = part.multiplier;
+
+                            // Decompose the chunk itself (e.g., 123 from 123456)
+                            const chunkScaleFactor = getDynamicScaleFactor(chunkValue, allTermsForDP);
+                            const scaledChunkValue = Math.round(chunkValue * chunkScaleFactor);
+                            const scaledAllTermsForDP_Chunk = allTermsForDP.map(num => Math.round(num * chunkScaleFactor));
+                            const chunkDecompObj = guusuuDecompositionDP_SumOnly(scaledChunkValue, scaledAllTermsForDP_Chunk);
+
+                            if (!chunkDecompObj) {
+                                possibleDecomposition = false;
+                                break;
+                            }
+                            const chunkDecomposition = formatDecomposition(chunkDecompObj.decomposition.map(term => term / chunkScaleFactor));
+                            totalTerms += chunkDecompObj.termsCount;
+
+                            // Handle the multiplier (1000, 1000000, etc.)
+                            if (currentMultiplier === 1) {
+                                formulaParts.push(chunkDecomposition);
+                            } else {
+                                // Decompose the multiplier (e.g., 1000)
+                                const multiplierScaleFactor = getDynamicScaleFactor(currentMultiplier, allTermsForDP);
+                                const scaledMultiplier = Math.round(currentMultiplier * multiplierScaleFactor);
+                                const scaledAllTermsForDP_Mult = allTermsForDP.map(num => Math.round(num * multiplierScaleFactor));
+                                const multDecompObj = guusuuDecompositionDP_SumOnly(scaledMultiplier, scaledAllTermsForDP_Mult);
+
+                                if (!multDecompObj) {
+                                    // If multiplier itself cannot be decomposed, fallback to using the number
+                                    formulaParts.push(`(${chunkDecomposition}) * ${currentMultiplier}`);
+                                    totalTerms += 1; // Count multiplier as 1 term
+                                } else {
+                                    const multDecomposition = formatDecomposition(multDecompObj.decomposition.map(term => term / multiplierScaleFactor));
+                                    totalTerms += multDecompObj.termsCount;
+                                    formulaParts.push(`(${chunkDecomposition}) * (${multDecomposition})`);
+                                }
+                            }
+                        }
+
+                        if (possibleDecomposition) {
+                             // Combine parts with '+'
+                            const finalFormula = formulaParts.join(' + ');
+                            console.log("3-digit chunking result:", finalFormula);
+
+                            // Try to find a direct BFS/DP solution for comparison
+                            const directScaleFactor = getDynamicScaleFactor(inputValue, allTermsForDP);
+                            const scaledInputValue = Math.round(inputValue * directScaleFactor);
+                            const scaledBasicTermsForBFS = basicTermsForBFS.map(num => Math.round(num * directScaleFactor));
+                            const scaledAllTermsForDP = allTermsForDP.map(num => Math.round(num * directScaleFactor));
+
+                            let bestDirectSolutionObj = null;
+                            const bfsResultObj = guusuuDecompositionBFS_SumDiff(scaledInputValue, scaledBasicTermsForBFS);
+                            const dpResultObj = guusuuDeusuuDecompositionDP_SumOnly(scaledInputValue, scaledAllTermsForDP);
+
+                            if (bfsResultObj) {
+                                bestDirectSolutionObj = bfsResultObj;
+                            }
+                            if (dpResultObj) {
+                                if (bestDirectSolutionObj === null) {
+                                    bestDirectSolutionObj = dpResultObj;
+                                } else {
+                                    if (dpResultObj.termsCount < bestDirectSolutionObj.termsCount) {
+                                        bestDirectSolutionObj = dpResultObj;
+                                    } else if (dpResultObj.termsCount === bestDirectSolutionObj.termsCount) {
+                                        if (dpResultObj.uniqueTermsCount > bestDirectSolutionObj.uniqueTermsCount) {
+                                            bestDirectSolutionObj = dpResultObj;
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (bestDirectSolutionObj && bestDirectSolutionObj.termsCount < totalTerms) {
+                                // If direct decomposition is better in terms of termsCount
+                                return {
+                                    formula: formatDecomposition(bestDirectSolutionObj.decomposition.map(term => term / directScaleFactor)),
+                                    terms: bestDirectSolutionObj.termsCount
+                                };
+                            } else if (possibleDecomposition) {
+                                return {
+                                    formula: finalFormula,
+                                    terms: totalTerms
+                                };
+                            }
+                        }
+                    }
+                }
+                
+                // Fallback for integers (less than 1000 or 3-digit chunking failed/not better)
+                const dynamicScaleFactor = getDynamicScaleFactor(inputValue, allTermsForDP);
+                const scaledInputValue = Math.round(inputValue * dynamicScaleFactor);
+                const scaledBasicTermsForBFS = basicTermsForBFS.map(num => Math.round(num * dynamicScaleFactor));
+                const scaledAllTermsForDP = allTermsForDP.map(num => Math.round(num * dynamicScaleFactor));
+
+                let bestSolutionObj = null;
+                const bfsResultObj = guusuuDecompositionBFS_SumDiff(scaledInputValue, scaledBasicTermsForBFS);
+                const dpResultObj = guusuuDecompositionDP_SumOnly(scaledInputValue, scaledAllTermsForDP);
+
+                if (bfsResultObj) {
+                    bestSolutionObj = bfsResultObj;
+                }
+                if (dpResultObj) {
+                    if (bestSolutionObj === null) {
+                        bestSolutionObj = dpResultObj;
+                    } else {
+                        if (dpResultObj.termsCount < bestSolutionObj.termsCount) {
+                            bestSolutionObj = dpResultObj;
+                        } else if (dpResultObj.termsCount === bestSolutionObj.termsCount) {
+                            if (dpResultObj.uniqueTermsCount > bestSolutionObj.uniqueTermsCount) {
+                                bestSolutionObj = dpResultObj;
+                            }
+                        }
+                    }
+                }
+
+                if (bestSolutionObj) {
+                    return {
+                        formula: formatDecomposition(bestSolutionObj.decomposition.map(term => term / dynamicScaleFactor)),
+                        terms: bestSolutionObj.termsCount
+                    };
+                } else {
+                    return null; // No decomposition found for this integer
+                }
+
+            } else {
+                // Case 2: Decimal input -> use fractional decomposition
+                console.log("Processing decimal (fractional decomposition):", inputValue);
+                const [numerator, denominator] = toFraction(inputValue);
+                console.log(`Fractional form: ${numerator} / ${denominator}`);
+
+                let numDecompString = null;
+                let denDecompString = null;
+                let totalTermsInFraction = 0;
+
+                // Decompose numerator (always use DP for sum of positive terms)
+                const numScaleFactor = getDynamicScaleFactor(numerator, allTermsForDP);
+                const scaledNumerator = Math.round(numerator * numScaleFactor);
+                const scaledAllTermsForDP_Num = allTermsForDP.map(num => Math.round(num * numScaleFactor));
+                const numDecompObj = guusuuDecompositionDP_SumOnly(scaledNumerator, scaledAllTermsForDP_Num);
+
+                if (numDecompObj) {
+                    const numDecomposition = numDecompObj.decomposition.map(term => term / numScaleFactor);
+                    totalTermsInFraction += numDecomposition.length;
+                    numDecompString = numDecomposition.map((numPart, index) => {
+                        const absNumPart = Math.abs(numPart);
+                        let termString;
+                        if (displayRepresentationMap.has(absNumPart)) {
+                            termString = displayRepresentationMap.get(absNumPart);
+                        } else {
+                            termString = absNumPart.toFixed(4).replace(/\.?0+$/, '');
+                        }
+                        return (index === 0 ? "" : "+ ") + termString; 
+                    }).join(' ').trim();
+                }
+
+                // Decompose denominator (always use DP for sum of positive terms)
+                const denScaleFactor = getDynamicScaleFactor(denominator, allTermsForDP);
+                const scaledDenominator = Math.round(denominator * denScaleFactor);
+                const scaledAllTermsForDP_Den = allTermsForDP.map(num => Math.round(num * denScaleFactor));
+                const denDecompObj = guusuuDecompositionDP_SumOnly(scaledDenominator, scaledAllTermsForDP_Den);
+
+                if (denDecompObj) {
+                    const denDecomposition = denDecompObj.decomposition.map(term => term / denScaleFactor);
+                    totalTermsInFraction += denDecomposition.length;
+                    denDecompString = denDecomposition.map((numPart, index) => {
+                        const absNumPart = Math.abs(numPart);
+                        let termString;
+                        if (displayRepresentationMap.has(absNumPart)) {
+                            termString = displayRepresentationMap.get(absNumPart);
+                        } else {
+                            termString = absNumPart.toFixed(4).replace(/\.?0+$/, '');
+                        }
+                        return (index === 0 ? "" : "+ ") + termString;
+                    }).join(' ').trim();
+                }
+
+                if (numDecompString && denDecompString) {
+                    return {
+                        formula: `(${numDecompString}) / (${denDecompString})`,
+                        terms: totalTermsInFraction
+                    };
+                } else {
+                    return null; // No fractional decomposition found
+                }
+            }
+        }
 
 
         // 「ぐー数分解する」ボタンのクリックイベントリスナー
@@ -380,12 +700,12 @@
             const loadingIndicator = document.getElementById('loadingIndicator');
             const decomposeButton = document.getElementById('decomposeButton');
 
-            hideMessage(); // 前のメッセージをクリア
-            resultElement.textContent = ''; // 前の結果をクリア
+            hideMessage(); // Clear previous message
+            resultElement.textContent = ''; // Clear previous result
 
             const inputValue = parseFloat(inputElement.value);
 
-            // 入力値の基本的なバリデーション
+            // Input validation
             if (isNaN(inputValue)) {
                 showMessage("有効な数値を入力してください。", "error");
                 return;
@@ -395,104 +715,29 @@
                     return;
                 }
 
-            // ボタンを無効化し、ローディングインジケーターを表示
+            // Disable button and show loading indicator
             decomposeButton.disabled = true;
             loadingIndicator.classList.remove('hidden');
 
-            // UIの更新を許可するために、短い遅延を挟んでから計算を実行します
-            setTimeout(() => {
-                console.log("Input Value:", inputValue);
-                let finalDecomposition = null;
+            // Allow UI to update before calculation
+            setTimeout(async () => { // Changed to async to await decomposeGuusuu
+                const result = await decomposeGuusuu(inputValue);
 
-                // Check if the solution is precomputed (for integers 1-100)
-                if (Number.isInteger(inputValue) && inputValue >= 1 && inputValue <= 100 && precomputedSolutions.has(inputValue)) {
-                    finalDecomposition = precomputedSolutions.get(inputValue);
-                    console.log("Using precomputed solution for:", inputValue, finalDecomposition);
-                } else {
-                    // If not precomputed, or if it's a decimal/outside 1-100, run the full decomposition logic
-                    const dynamicScaleFactor = getDynamicScaleFactor(inputValue, allTermsForDP);
-                    const scaledInputValue = Math.round(inputValue * dynamicScaleFactor);
-                    console.log("Dynamic Scale Factor:", dynamicScaleFactor);
-                    console.log("Scaled Input Value:", scaledInputValue);
-
-                    // Scale terms for BFS and DP based on the dynamic scale factor
-                    const scaledBasicTermsForBFS = basicTermsForBFS.map(num => Math.round(num * dynamicScaleFactor));
-                    const scaledAllTermsForDP = allTermsForDP.map(num => Math.round(num * dynamicScaleFactor));
-                    console.log("Scaled Basic Terms for BFS (for current input):", scaledBasicTermsForBFS);
-                    console.log("Scaled All Terms for DP (for current input):", scaledAllTermsForDP);
-
-                    let bestSolutionObj = null;
-
-                    // Step 1: BFS (和と差) で分解を試みる
-                    const bfsResultObj = guusuuDecompositionBFS_SumDiff(scaledInputValue, scaledBasicTermsForBFS);
-                    console.log("BFS Result Object:", bfsResultObj);
-
-                    // Step 2: DP (和のみ) で分解を試みる
-                    const dpResultObj = guusuuDecompositionDP_SumOnly(scaledInputValue, scaledAllTermsForDP);
-                    console.log("DP Result Object:", dpResultObj);
-
-                    // 結果の比較と選択 (優先順位: 項数最小優先、次にユニークぐー数最大化)
-                    // BFSの結果を評価
-                    if (bfsResultObj) {
-                        bestSolutionObj = bfsResultObj;
-                    }
-
-                    // DPの結果を評価し、現在の最良解と比較
-                    if (dpResultObj) {
-                        if (bestSolutionObj === null) { // BFSで解が見つからなかった場合
-                            bestSolutionObj = dpResultObj;
-                        } else {
-                            // 優先順位1: 項数を最小化
-                            if (dpResultObj.termsCount < bestSolutionObj.termsCount) {
-                                bestSolutionObj = dpResultObj;
-                            } else if (dpResultObj.termsCount === bestSolutionObj.termsCount) {
-                                // 優先順位2: 項数が同じ場合、ユニークなぐー数の数を最大化
-                                if (dpResultObj.uniqueTermsCount > bestSolutionObj.uniqueTermsCount) {
-                                    bestSolutionObj = dpResultObj;
-                                }
-                            }
-                        }
-                    }
-                    // Scale back the final decomposition terms
-                    finalDecomposition = bestSolutionObj ? bestSolutionObj.decomposition.map(term => term / dynamicScaleFactor) : null;
-                    console.log("Final Decomposition (unscaled):", finalDecomposition);
-                }
-
-
-                if (finalDecomposition) {
-                    // ぐー数、ぐー数の階乗、ぐー数同士の積の表示を整形します
-                    const sumString = finalDecomposition.map((num, index) => {
-                        const absNum = Math.abs(num);
-                        let termString;
-                        if (displayRepresentationMap.has(absNum)) {
-                            termString = displayRepresentationMap.get(absNum);
-                        } else {
-                            // If not in map, format to a reasonable decimal places
-                            // Remove trailing zeros and decimal if integer (e.g., 5.0000 -> 5)
-                            termString = absNum.toFixed(4).replace(/\.?0+$/, ''); 
-                        }
-
-                        if (num < 0) {
-                            return (index === 0 ? "-" : "- ") + termString; // 最初の項が負の場合とそれ以降で表示を調整
-                        } else {
-                            return (index === 0 ? "" : "+ ") + termString; // 最初の項が正の場合は"+"をつけない
-                        }
-                    }).join(' '); // 各項の間はスペースで結合
-
-                    resultElement.textContent = `${inputValue} = ${sumString.trim()} (項数: ${finalDecomposition.length})`;
+                if (result) {
+                    resultElement.textContent = `${inputValue} = ${result.formula} (項数: ${result.terms})`;
                     showMessage("ぐー数分解が完了しました。", "success");
                 } else {
                     resultElement.textContent = 'この数字はぐー数分解できませんでした。';
                     showMessage("指定された数字は、ぐー数のみの項で構成された計算に直すことができませんでした。", "error");
                 }
 
-                // ボタンを再度有効化し、ローディングインジケーターを非表示
+                // Re-enable button and hide loading indicator
                 decomposeButton.disabled = false;
                 loadingIndicator.classList.add('hidden');
-            }, 10); // 10ミリ秒の遅延
+            }, 10); // 10ms delay
         });
 
-        // ページ読み込み時の初期メッセージ表示
+        // Initial message on page load
         showMessage("ぐー数分解したい数字を入力し、「ぐー数分解する」ボタンを押してください。", "info");
     </script>
 </body>
